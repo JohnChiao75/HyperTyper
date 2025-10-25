@@ -10,6 +10,9 @@ on:
 env:
   OUTPUT_NAME: hypertyper
 
+permissions:
+  contents: write
+
 jobs:
   build-and-commit:
     runs-on: windows-latest
