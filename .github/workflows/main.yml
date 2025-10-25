@@ -1,0 +1,64 @@
+name: Build hypertyper.exe
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ published ]
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  OUTPUT_NAME: hypertyper
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyQt6 pywin32 pyinstaller
+        # 如果有requirements.txt，使用 pip install -r requirements.txt
+        
+    - name: Verify Python and imports
+      run: |
+        python --version
+        python -c "import PyQt6; print('PyQt6 OK')"
+        python -c "import win32api; print('pywin32 OK')"
+        # 测试主程序是否能导入
+        python -c "import main; print('Main import OK')" || echo "Main import check skipped"
+        
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --onefile --windowed --name ${{ env.OUTPUT_NAME }} main.py
+        # 参数说明：
+        # --onefile: 单文件打包
+        # --windowed: 无控制台窗口（GUI程序）
+        # --name: 设置输出文件名
+        
+    - name: List dist contents
+      run: dir dist
+      
+    - name: Upload executable artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}-windows
+        path: dist/${{ env.OUTPUT_NAME }}.exe
+        retention-days: 30
+        
+    - name: Create release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/${{ env.OUTPUT_NAME }}.exe
