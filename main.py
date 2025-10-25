@@ -245,7 +245,7 @@ class KeySimulatorGUI(QMainWindow):
         layout = QVBoxLayout(central_widget)
         
         # 标题
-        title = QLabel("按键脚本管理器")
+        title = QLabel("HyperTyper 脚本管理")
         title.setStyleSheet("font-size: 16pt; font-weight: bold; margin: 10px;")
         layout.addWidget(title)
         
