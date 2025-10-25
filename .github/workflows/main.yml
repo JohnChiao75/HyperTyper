@@ -1,9 +1,7 @@
-name: Build hypertyper.exe
+name: Build and Commit hypertyper.exe
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
     branches: [ main, master ]
   release:
     types: [ published ]
@@ -13,12 +11,15 @@ env:
   OUTPUT_NAME: hypertyper
 
 jobs:
-  build-windows:
+  build-and-commit:
     runs-on: windows-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0  # 获取所有历史记录
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -29,36 +30,37 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install PyQt6 pywin32 pyinstaller
-        # 如果有requirements.txt，使用 pip install -r requirements.txt
         
-    - name: Verify Python and imports
+    - name: Verify installations
       run: |
-        python --version
         python -c "import PyQt6; print('PyQt6 OK')"
         python -c "import win32api; print('pywin32 OK')"
-        # 测试主程序是否能导入
-        python -c "import main; print('Main import OK')" || echo "Main import check skipped"
+        pyinstaller --version
         
-    - name: Build with PyInstaller
+    - name: Build executable
       run: |
         pyinstaller --onefile --windowed --name ${{ env.OUTPUT_NAME }} main.py
-        # 参数说明：
-        # --onefile: 单文件打包
-        # --windowed: 无控制台窗口（GUI程序）
-        # --name: 设置输出文件名
         
-    - name: List dist contents
-      run: dir dist
-      
-    - name: Upload executable artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.OUTPUT_NAME }}-windows
-        path: dist/${{ env.OUTPUT_NAME }}.exe
-        retention-days: 30
+    - name: Verify executable
+      run: |
+        dir dist
+        echo "文件大小:"
+        ls -la dist/${{ env.OUTPUT_NAME }}.exe
         
-    - name: Create release (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/${{ env.OUTPUT_NAME }}.exe
+    - name: Create releases directory
+      run: |
+        if (!(Test-Path "releases")) {
+          New-Item -ItemType Directory -Path "releases" -Force
+        }
+        
+    - name: Copy executable to releases
+      run: |
+        Copy-Item "dist/${{ env.OUTPUT_NAME }}.exe" "releases/${{ env.OUTPUT_NAME }}.exe" -Force
+        
+    - name: Commit executable to repository
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add releases/${{ env.OUTPUT_NAME }}.exe
+        git commit -m "chore: build ${{ env.OUTPUT_NAME }}.exe from ${{ github.sha }}" -m "Automated build from GitHub Actions"
+        git push
