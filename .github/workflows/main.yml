@@ -19,7 +19,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0  # 获取所有历史记录
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -43,9 +43,10 @@ jobs:
         
     - name: Verify executable
       run: |
+        echo "dist 目录内容:"
         dir dist
-        echo "文件大小:"
-        ls -la dist/${{ env.OUTPUT_NAME }}.exe
+        echo "可执行文件信息:"
+        Get-ChildItem "dist/${{ env.OUTPUT_NAME }}.exe" | Format-Table Name, Length, LastWriteTime
         
     - name: Create releases directory
       run: |
@@ -62,5 +63,5 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add releases/${{ env.OUTPUT_NAME }}.exe
-        git commit -m "chore: build ${{ env.OUTPUT_NAME }}.exe from ${{ github.sha }}" -m "Automated build from GitHub Actions"
+        git commit -m "chore: build ${{ env.OUTPUT_NAME }}.exe" -m "Automated build from GitHub Actions - Commit: ${{ github.sha }}"
         git push
