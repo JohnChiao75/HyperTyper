@@ -17,21 +17,21 @@ VK_CODE = {
     # 字符键
     '0': 0x30, '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34,
     '5': 0x35, '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39,
-    
+
     # 字母键 (A-Z)
     'a': 0x41, 'b': 0x42, 'c': 0x43, 'd': 0x44, 'e': 0x45,
     'f': 0x46, 'g': 0x47, 'h': 0x48, 'i': 0x49, 'j': 0x4A,
     'k': 0x4B, 'l': 0x4C, 'm': 0x4D, 'n': 0x4E, 'o': 0x4F,
     'p': 0x50, 'q': 0x51, 'r': 0x52, 's': 0x53, 't': 0x54,
     'u': 0x55, 'v': 0x56, 'w': 0x57, 'x': 0x58, 'y': 0x59, 'z': 0x5A,
-    
+
     # 大写字母键
     'A': 0x41, 'B': 0x42, 'C': 0x43, 'D': 0x44, 'E': 0x45,
     'F': 0x46, 'G': 0x47, 'H': 0x48, 'I': 0x49, 'J': 0x4A,
     'K': 0x4B, 'L': 0x4C, 'M': 0x4D, 'N': 0x4E, 'O': 0x4F,
     'P': 0x50, 'Q': 0x51, 'R': 0x52, 'S': 0x53, 'T': 0x54,
     'U': 0x55, 'V': 0x56, 'W': 0x57, 'X': 0x58, 'Y': 0x59, 'Z': 0x5A,
-    
+
     # 功能键
     'enter': win32con.VK_RETURN,
     'esc': win32con.VK_ESCAPE,
@@ -44,24 +44,24 @@ VK_CODE = {
     'end': win32con.VK_END,
     'pageup': win32con.VK_PRIOR,
     'pagedown': win32con.VK_NEXT,
-    
+
     # 方向键
     'up': win32con.VK_UP,
     'down': win32con.VK_DOWN,
     'left': win32con.VK_LEFT,
     'right': win32con.VK_RIGHT,
-    
+
     # 控制键
     'ctrl': win32con.VK_CONTROL,
     'alt': win32con.VK_MENU,
     'shift': win32con.VK_SHIFT,
     'win': win32con.VK_LWIN,
-    
+
     # 锁定键
     'capslock': win32con.VK_CAPITAL,
     'numlock': win32con.VK_NUMLOCK,
     'scrolllock': win32con.VK_SCROLL,
-    
+
     # F1-F12
     'f1': win32con.VK_F1, 'f2': win32con.VK_F2, 'f3': win32con.VK_F3,
     'f4': win32con.VK_F4, 'f5': win32con.VK_F5, 'f6': win32con.VK_F6,
@@ -73,23 +73,23 @@ class KeySimulatorThread(QThread):
     """按键模拟线程，避免阻塞GUI"""
     finished = pyqtSignal()
     progress = pyqtSignal(int, int)  # 当前步骤，总步骤
-    
+
     def __init__(self, key_array, delay=0.1):
         super().__init__()
         self.key_array = key_array
         self.delay = delay
         self.is_running = True
-        
+
     def run(self):
         """执行按键模拟"""
         total_steps = len(self.key_array)
-        
+
         for i, item in enumerate(self.key_array):
             if not self.is_running:
                 break
-                
+
             self.progress.emit(i + 1, total_steps)
-            
+
             if isinstance(item, list):
                 # 处理组合键
                 self.press_key_combination(item)
@@ -102,13 +102,13 @@ class KeySimulatorThread(QThread):
                     if item in VK_CODE:
                         self.press_key(VK_CODE[item])
             time.sleep(self.delay)
-            
+
         self.finished.emit()
-    
+
     def stop(self):
         """停止执行"""
         self.is_running = False
-        
+
     def press_key(self, vk_code):
         """按下并释放单个键"""
         win32api.keybd_event(vk_code, 0, 0, 0)  # 按下键
@@ -122,18 +122,78 @@ class KeySimulatorThread(QThread):
             vk_code = VK_CODE[key]
             win32api.keybd_event(vk_code, 0, 0, 0)
             time.sleep(0.05)
-        
+
         # 按下并释放最后一个键
         last_key_vk = VK_CODE[keys[-1]]
         win32api.keybd_event(last_key_vk, 0, 0, 0)
         time.sleep(0.05)
         win32api.keybd_event(last_key_vk, 0, win32con.KEYEVENTF_KEYUP, 0)
-        
+
         # 释放所有修饰键（逆序）
         for key in reversed(keys[:-1]):
             vk_code = VK_CODE[key]
             win32api.keybd_event(vk_code, 0, win32con.KEYEVENTF_KEYUP, 0)
             time.sleep(0.05)
+
+
+class HotkeyManager:
+    """热键管理器"""
+    def __init__(self):
+        self.hotkey_id = 1
+        self.registered_hotkeys = {}  # {hotkey_id: (modifiers, key, callback)}
+        self.script_name = None
+        
+    def register_hotkey(self, modifiers, key, callback):
+        """注册热键"""
+        try:
+            win32api.RegisterHotKey(None, self.hotkey_id, modifiers, key)
+            self.registered_hotkeys[self.hotkey_id] = (modifiers, key, callback)
+            self.hotkey_id += 1
+            return True
+        except Exception as e:
+            print(f"注册热键失败: {e}")
+            return False
+            
+    def unregister_all_hotkeys(self):
+        """注销所有热键"""
+        for hotkey_id in list(self.registered_hotkeys.keys()):
+            try:
+                win32api.UnregisterHotKey(None, hotkey_id)
+                del self.registered_hotkeys[hotkey_id]
+            except:
+                pass
+                
+    def check_hotkeys(self):
+        """检查热键事件"""
+        try:
+            msg = win32api.GetMessage(0, 0, 0)
+            if msg and msg[0] == win32con.WM_HOTKEY:
+                hotkey_id = msg[1]
+                if hotkey_id in self.registered_hotkeys:
+                    _, _, callback = self.registered_hotkeys[hotkey_id]
+                    callback()
+                return True
+        except:
+            pass
+        return False
+
+
+class HotkeyMonitorThread(QThread):
+    """热键监控线程"""
+    def __init__(self, hotkey_manager):
+        super().__init__()
+        self.hotkey_manager = hotkey_manager
+        self.is_running = True
+        
+    def run(self):
+        """监控热键"""
+        while self.is_running:
+            self.hotkey_manager.check_hotkeys()
+            time.sleep(0.01)
+            
+    def stop(self):
+        """停止监控"""
+        self.is_running = False
 
 
 class ScriptEditDialog(QDialog):
@@ -142,19 +202,19 @@ class ScriptEditDialog(QDialog):
         super().__init__(parent)
         self.script_name = script_name
         self.script_data = script_data or []
-        
+
         self.setWindowTitle("编辑脚本")
         self.setModal(True)
         self.resize(500, 400)
-        
+
         layout = QVBoxLayout(self)
-        
+
         # 脚本名称
         form_layout = QFormLayout()
         self.name_edit = QLineEdit(script_name)
         form_layout.addRow("脚本名称:", self.name_edit)
         layout.addLayout(form_layout)
-        
+
         # 脚本内容
         layout.addWidget(QLabel("脚本内容 (每行一个按键或组合键):"))
         self.script_edit = QTextEdit()
@@ -169,7 +229,7 @@ class ScriptEditDialog(QDialog):
             "[\"ctrl\", \"c\"]\n"
             "[\"ctrl\", \"v\"]"
         )
-        
+
         # 如果已有数据，填充到编辑框
         if self.script_data:
             script_text = ""
@@ -179,9 +239,9 @@ class ScriptEditDialog(QDialog):
                 else:
                     script_text += item + "\n"
             self.script_edit.setPlainText(script_text.strip())
-            
+
         layout.addWidget(self.script_edit)
-        
+
         # 按钮
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | 
@@ -190,19 +250,19 @@ class ScriptEditDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
-    
+
     def get_script_data(self):
         """获取脚本数据"""
         script_name = self.name_edit.text().strip()
         script_text = self.script_edit.toPlainText().strip()
-        
+
         # 解析脚本内容
         script_data = []
         for line in script_text.split('\n'):
             line = line.strip()
             if not line:
                 continue
-                
+
             # 尝试解析组合键
             if line.startswith('[') and line.endswith(']'):
                 try:
@@ -219,7 +279,7 @@ class ScriptEditDialog(QDialog):
             else:
                 # 单个按键
                 script_data.append(line)
-                
+
         return script_name, script_data
 
 
@@ -228,69 +288,129 @@ class KeySimulatorGUI(QMainWindow):
         super().__init__()
         self.scripts = {}  # 存储脚本 {名称: 按键数组}
         self.current_thread = None  # 当前执行线程
-        
+        self.hotkey_manager = HotkeyManager()
+        self.hotkey_monitor = None
+        self.bound_script = None  # 当前绑定的脚本
+
         self.init_ui()
         self.load_scripts()
-        
+        self.start_hotkey_monitor()
+
     def init_ui(self):
         """初始化UI"""
         self.setWindowTitle("按键模拟器")
         self.setGeometry(100, 100, 600, 500)
-        
+
         # 中央窗口
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        
+
         # 主布局
         layout = QVBoxLayout(central_widget)
-        
+
         # 标题
         title = QLabel("HyperTyper 脚本管理")
         title.setStyleSheet("font-size: 16pt; font-weight: bold; margin: 10px;")
         layout.addWidget(title)
-        
+
         # 脚本列表
         layout.addWidget(QLabel("脚本列表:"))
         self.script_list = QListWidget()
         self.script_list.itemDoubleClicked.connect(self.edit_script)
         layout.addWidget(self.script_list)
-        
+
         # 按钮布局
         button_layout = QHBoxLayout()
-        
+
         self.new_btn = QPushButton("新建")
         self.new_btn.clicked.connect(self.new_script)
         button_layout.addWidget(self.new_btn)
-        
+
         self.edit_btn = QPushButton("编辑")
         self.edit_btn.clicked.connect(self.edit_script)
         button_layout.addWidget(self.edit_btn)
-        
+
         self.delete_btn = QPushButton("删除")
         self.delete_btn.clicked.connect(self.delete_script)
         button_layout.addWidget(self.delete_btn)
-        
-        self.execute_btn = QPushButton("执行 (5秒后)")
-        self.execute_btn.clicked.connect(self.execute_script)
-        self.execute_btn.setStyleSheet("background-color: #4CAF50; color: white;")
-        button_layout.addWidget(self.execute_btn)
-        
+
+        self.bind_btn = QPushButton("绑定热键 (Ctrl+Alt+K)")
+        self.bind_btn.clicked.connect(self.bind_hotkey)
+        self.bind_btn.setStyleSheet("background-color: #2196F3; color: white;")
+        button_layout.addWidget(self.bind_btn)
+
+        self.unbind_btn = QPushButton("解绑热键")
+        self.unbind_btn.clicked.connect(self.unbind_hotkey)
+        self.unbind_btn.setStyleSheet("background-color: #FF9800; color: white;")
+        button_layout.addWidget(self.unbind_btn)
+
         layout.addLayout(button_layout)
-        
+
+        # 绑定状态显示
+        self.binding_label = QLabel("未绑定热键")
+        self.binding_label.setStyleSheet("font-weight: bold; color: #f44336;")
+        layout.addWidget(self.binding_label)
+
         # 执行进度
         self.progress_label = QLabel("准备就绪")
         layout.addWidget(self.progress_label)
-        
+
         # 停止按钮
         self.stop_btn = QPushButton("停止执行")
         self.stop_btn.clicked.connect(self.stop_execution)
         self.stop_btn.setEnabled(False)
         self.stop_btn.setStyleSheet("background-color: #f44336; color: white;")
         layout.addWidget(self.stop_btn)
-        
+
         # 状态栏
         self.statusBar().showMessage("就绪")
+
+    def start_hotkey_monitor(self):
+        """启动热键监控"""
+        self.hotkey_monitor = HotkeyMonitorThread(self.hotkey_manager)
+        self.hotkey_monitor.start()
+
+    def bind_hotkey(self):
+        """绑定热键到当前选中的脚本"""
+        current_item = self.script_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "警告", "请先选择一个脚本!")
+            return
+
+        script_name = current_item.text()
         
+        # 先解绑现有的热键
+        self.hotkey_manager.unregister_all_hotkeys()
+        
+        # 注册新的热键 Ctrl+Alt+K
+        success = self.hotkey_manager.register_hotkey(
+            win32con.MOD_CONTROL | win32con.MOD_ALT, 
+            VK_CODE['K'], 
+            lambda: self.execute_script_by_hotkey(script_name)
+        )
+        
+        if success:
+            self.bound_script = script_name
+            self.binding_label.setText(f"已绑定: {script_name} -> Ctrl+Alt+K")
+            self.binding_label.setStyleSheet("font-weight: bold; color: #4CAF50;")
+            self.statusBar().showMessage(f"已绑定脚本 '{script_name}' 到热键 Ctrl+Alt+K")
+        else:
+            QMessageBox.warning(self, "错误", "热键注册失败! 可能已被其他程序占用。")
+
+    def unbind_hotkey(self):
+        """解绑热键"""
+        self.hotkey_manager.unregister_all_hotkeys()
+        self.bound_script = None
+        self.binding_label.setText("未绑定热键")
+        self.binding_label.setStyleSheet("font-weight: bold; color: #f44336;")
+        self.statusBar().showMessage("已解绑热键")
+
+    def execute_script_by_hotkey(self, script_name):
+        """通过热键执行脚本"""
+        # 确保在主线程中执行
+        if script_name in self.scripts:
+            QTimer.singleShot(0, lambda: self.start_execution(self.scripts[script_name], script_name))
+
     def load_scripts(self):
         """从文件加载脚本"""
         try:
@@ -306,18 +426,18 @@ class KeySimulatorGUI(QMainWindow):
             }
             self.save_scripts()
             self.update_script_list()
-    
+
     def save_scripts(self):
         """保存脚本到文件"""
         with open("scripts.json", "w") as f:
             json.dump(self.scripts, f, indent=2)
-    
+
     def update_script_list(self):
         """更新脚本列表显示"""
         self.script_list.clear()
         for name in self.scripts:
             self.script_list.addItem(name)
-    
+
     def new_script(self):
         """新建脚本"""
         dialog = ScriptEditDialog(self)
@@ -327,121 +447,116 @@ class KeySimulatorGUI(QMainWindow):
                 if name in self.scripts:
                     QMessageBox.warning(self, "错误", f"脚本 '{name}' 已存在!")
                     return
-                    
+
                 self.scripts[name] = data
                 self.save_scripts()
                 self.update_script_list()
                 self.statusBar().showMessage(f"已创建脚本: {name}")
-    
+
     def edit_script(self):
         """编辑脚本"""
         current_item = self.script_list.currentItem()
         if not current_item:
             QMessageBox.warning(self, "警告", "请先选择一个脚本!")
             return
-            
+
         old_name = current_item.text()
         dialog = ScriptEditDialog(self, old_name, self.scripts[old_name])
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_name, new_data = dialog.get_script_data()
             if new_name and new_data:
+                # 如果正在编辑绑定的脚本，更新绑定
+                if self.bound_script == old_name:
+                    self.bound_script = new_name
+                    # 重新绑定热键
+                    self.unbind_hotkey()
+                    self.bind_hotkey()
+                
                 # 删除旧脚本，添加新脚本
                 del self.scripts[old_name]
                 self.scripts[new_name] = new_data
                 self.save_scripts()
                 self.update_script_list()
                 self.statusBar().showMessage(f"已更新脚本: {new_name}")
-    
+
     def delete_script(self):
         """删除脚本"""
         current_item = self.script_list.currentItem()
         if not current_item:
             QMessageBox.warning(self, "警告", "请先选择一个脚本!")
             return
-            
+
         name = current_item.text()
+        
+        # 如果删除的是绑定的脚本，先解绑
+        if self.bound_script == name:
+            self.unbind_hotkey()
+        
         reply = QMessageBox.question(
             self, "确认删除", 
             f"确定要删除脚本 '{name}' 吗?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             del self.scripts[name]
             self.save_scripts()
             self.update_script_list()
             self.statusBar().showMessage(f"已删除脚本: {name}")
-    
-    def execute_script(self):
-        """执行脚本（5秒后）"""
-        current_item = self.script_list.currentItem()
-        if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个脚本!")
-            return
-        
+
+    def start_execution(self, script_data, name):
+        """开始执行脚本"""
         if self.current_thread and self.current_thread.isRunning():
             QMessageBox.warning(self, "警告", "已有脚本正在执行，请等待完成!")
             return
-            
-        name = current_item.text()
-        script_data = self.scripts[name]
-        
-        # 显示倒计时
-        self.statusBar().showMessage(f"5秒后开始执行脚本: {name}")
-        self.execute_btn.setEnabled(False)
-        self.stop_btn.setEnabled(True)
-        
-        # 使用QTimer实现倒计时
-        self.countdown = 5
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(lambda: self.countdown_execute(name, script_data))
-        self.timer.start(1000)  # 每秒触发一次
-    
-    def countdown_execute(self, name, script_data):
-        """倒计时执行"""
-        self.countdown -= 1
-        self.statusBar().showMessage(f"{self.countdown}秒后开始执行脚本: {name}")
-        
-        if self.countdown <= 0:
-            self.timer.stop()
-            self.start_execution(script_data, name)
-    
-    def start_execution(self, script_data, name):
-        """开始执行脚本"""
+
         self.statusBar().showMessage(f"正在执行脚本: {name}")
-        
+
         # 创建并启动执行线程
         self.current_thread = KeySimulatorThread(script_data)
         self.current_thread.finished.connect(self.execution_finished)
         self.current_thread.progress.connect(self.update_progress)
         self.current_thread.start()
-    
+        
+        # 更新UI状态
+        self.stop_btn.setEnabled(True)
+
     def update_progress(self, current, total):
         """更新执行进度"""
         self.progress_label.setText(f"执行进度: {current}/{total}")
-    
+
     def execution_finished(self):
         """执行完成"""
         self.statusBar().showMessage("脚本执行完成")
         self.progress_label.setText("准备就绪")
-        self.execute_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.current_thread = None
-    
+
     def stop_execution(self):
         """停止执行"""
         if self.current_thread and self.current_thread.isRunning():
             self.current_thread.stop()
             self.current_thread.wait(1000)  # 等待线程结束
-            
+
         self.statusBar().showMessage("执行已停止")
         self.progress_label.setText("准备就绪")
-        self.execute_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
+
+    def closeEvent(self, event):
+        """关闭窗口时的处理"""
+        # 停止所有线程
+        if self.current_thread and self.current_thread.isRunning():
+            self.current_thread.stop()
+            self.current_thread.wait(1000)
+            
+        if self.hotkey_monitor and self.hotkey_monitor.isRunning():
+            self.hotkey_monitor.stop()
+            self.hotkey_monitor.wait(1000)
+            
+        # 解绑所有热键
+        self.hotkey_manager.unregister_all_hotkeys()
         
-        # 如果倒计时中，停止计时器
-        if hasattr(self, 'timer') and self.timer.isActive():
-            self.timer.stop()
+        event.accept()
 
 
 if __name__ == "__main__":
